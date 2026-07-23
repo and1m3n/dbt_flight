@@ -1,0 +1,56 @@
+sources:
+  - name: demo_src
+    description: Данные из БД авиаперелетов
+    tables:
+      - name: aircrafts
+        description: самолеты
+        columns:
+          - name: aircraft_code
+            tests:
+              - not_null
+              - unique
+            description: код самолета
+          - name: model
+            description: модель самолета
+          - name: "range"
+            description: ранж
+      - name: airports
+        description: аэропорты
+        columns:
+          - name: airport_code
+            description: код аэропорта
+          - name: airport_name
+            description: название аэропорта
+          - name: city
+            description: город
+          - name: coordinates
+            description: координаты
+          - name: timezone
+            description: часовой пояс
+      - name: seats
+        description: места в самолете
+        columns:
+          - name: aircraft_code
+            description: код самолета
+          - name: seat_no
+            description: номер места
+          - name: fare_conditions
+            description: условия тарифа
+      - name: bookings
+        description: бронирования
+        columns:
+          - name: book_ref
+            description: номер бронирования
+          - name: book_date
+            description: дата бронирования
+          - name: total_amount
+            description: общая сумма
+        config:
+          loaded_at_field: book_date
+          freshness:
+            warn_after:
+              count: 2400000
+              period: hour
+            error_after:
+              count: 4800000
+              period: hour
