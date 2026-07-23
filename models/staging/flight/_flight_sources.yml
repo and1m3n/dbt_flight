@@ -54,3 +54,71 @@ sources:
             error_after:
               count: 4800000
               period: hour
+      - name: boarding_passes
+        description: посадочные талоны
+        columns:
+          - name: ticket_no
+            description: номер билета
+          - name: flight_id
+            description: id рейса
+          - name: boarding_no
+            description: номер посадки
+          - name: seat_no
+            description: номер места
+      - name: flights
+        description: рейсы
+        columns:
+          - name: flight_id
+            description: id рейса
+          - name: flight_no
+            description: номер рейса
+          - name: scheduled_departure
+            description: запланированное время вылета
+          - name: scheduled_arrival
+            description: запланированное время прилета
+          - name: departure_airport
+            description: аэропорт вылета
+          - name: arrival_airport
+            description: аэропорт прилета
+          - name: status
+            description: статус рейса
+          - name: aircraft_code
+            description: код самолета
+          - name: actual_departure
+            description: фактическое время вылета
+          - name: actual_arrival
+            description: фактическое время прилета
+        config:
+          loaded_at_field: actual_departure
+          freshness:
+            warn_after:
+              count: 2400000
+              period: hour
+            error_after:
+              count: 4800000
+              period: hour
+      - name: ticket_flights
+        description: билеты на рейсы
+        columns:
+          - name: ticket_no
+            description: номер билета
+          - name: flight_id
+            description: id рейса
+          - name: fare_conditions
+            description: условия тарифа
+          - name: amount
+            description: сумма
+      - name: tickets
+        description: билеты
+        columns:
+          - name: ticket_no
+            description: номер билета
+          - name: book_ref
+            description: номер бронирования
+          - name: passenger_id
+            description: id пассажира
+          - name: passenger_name
+            description: имя пассажира
+          - name: contact_data
+            description: контактные данные
+
