@@ -25,21 +25,62 @@ source /Users/andmin/Desktop/DBT/less1/dbt-env/bin/activate
 ```
 flight_practice/
 ├── models/
-│   └── staging/
+│   ├── staging/
+│   │   └── flight/
+│   │       ├── _flight_sources.yml          # Описание источников
+│   │       ├── staging_flights__aircraft.sql
+│   │       ├── staging_flights__airports.sql
+│   │       ├── staging_flights__bookings.sql
+│   │       ├── staging_flights__boarding_passes.sql
+│   │       ├── staging_flights__flights.sql
+│   │       ├── staging_flights__seats.sql
+│   │       ├── staging_flights__ticket_flights.sql
+│   │       └── staging_flights__tickets.sql
+│   └── Intermediate/
 │       └── flight/
-│           ├── _flight_sources.yml          # Описание источников
-│           ├── staging_flights__aircraft.sql
-│           ├── staging_flights__airports.sql
-│           ├── staging_flights__bookings.sql
-│           ├── staging_flights__boarding_passes.sql
-│           ├── staging_flights__flights.sql
-│           ├── staging_flights__seats.sql
-│           ├── staging_flights__ticket_flights.sql
-│           └── staging_flights__tickets.sql
+│           ├── fct_intermediate_flights__bookings.sql
+│           ├── fct_intermediate_flights__flights.sql
+│           ├── fct_intermediate_flights__ticket_flights.sql
+│           └── fct_intermediate_flights__tickets.sql
 ├── dbt_project.yml
 ├── profiles.yml
 └── DEV_LOG.md                                # Этот файл
 ```
+
+---
+
+## Intermediate слой
+
+**Назначение:** Промежуточный слой между staging и final/мерами. Используется для объединения данных, простых трансформаций и подготовки данных для аналитики.
+
+### Структура intermediate модели
+
+```sql
+{{
+  config(
+    materialized = 'table'
+  )
+}}
+select col1, col2, col3 from
+ {{ ref('staging_flights__table_name') }}
+```
+
+**Важно:** Используется `{{ ref() }}` для ссылки на staging модели, а не `{{ source() }}`.
+
+### Созданные intermediate модели
+
+| Модель | Исходная staging модель | Колонки |
+|--------|------------------------|----------|
+| `fct_intermediate_flights__bookings` | staging_flights__bookings | book_ref, book_date, total_amount |
+| `fct_intermediate_flights__flights` | staging_flights__flights | flight_id, flight_no, scheduled_departure, scheduled_arrival, departure_airport, arrival_airport, status, aircraft_code, actual_departure, actual_arrival |
+| `fct_intermediate_flights__ticket_flights` | staging_flights__ticket_flights | ticket_no, flight_id, fare_conditions, amount |
+| `fct_intermediate_flights__tickets` | staging_flights__tickets | ticket_no, book_ref, passenger_id, passenger_name, contact_data |
+
+### Создание новой intermediate модели
+
+1. Создать SQL файл в `models/Intermediate/flight/`
+2. Использовать `{{ ref('staging_flights__source_table') }}` для данных
+3. Указать `materialized = 'table'` в config
 
 ---
 
@@ -156,6 +197,128 @@ dbt source freshness
 
 ---
 
+## Типы материализации в dbt
+
+Материализация определяет, как dbt создаёт или обновляет данные в базе данных.
+
+### Основные типы
+
+| Тип | Описание | Когда использовать |
+|-----|----------|-------------------|
+| `table` | Создаёт/пересоздаёт таблицу при каждом запуске | Для больших данных, сложных трансформаций, часто используемых моделей |
+| `view` | Создаёт представление (виртуальная таблица) | Для простых трансформаций, экономии места на диске |
+| `ephemeral` | Не создаёт объект — подставляет SQL как CTE | Для простых шагов, которые не нужно хранить отдельно |
+| `incremental` | Добавляет только новые данные | Для растущих таблиц (логи, события) |
+
+### Различия на примере ticket_flights
+
+#### Вариант 1: staging — ephemeral, fct — table
+
+```sql
+-- staging_flights__ticket_flights.sql
+{{
+  config(
+    materialized = 'ephemeral'  -- Не создаёт таблицу, только CTE
+  )
+}}
+select ticket_no, flight_id, fare_conditions, amount from
+{{ source('demo_src','ticket_flights') }}
+
+-- fct_ticket_flights.sql
+{{
+  config(
+    materialized = 'table'      -- Создаёт физическую таблицу
+  )
+}}
+select * from {{ ref('staging_flights__ticket_flights') }}
+```
+
+**Плюсы:** Экономия места на диске (staging не хранится)
+**Минусы:** staging SQL подставляется в каждый запрос, может усложнить отладку
+
+---
+
+#### Вариант 2: staging — table, fct — view
+
+```sql
+-- staging_flights__ticket_flights.sql
+{{
+  config(
+    materialized = 'table'      -- Создаёт физическую таблицу
+  )
+}}
+select ticket_no, flight_id, fare_conditions, amount from
+{{ source('demo_src','ticket_flights') }}
+
+-- fct_ticket_flights.sql
+{{
+  config(
+    materialized = 'view'        -- Создаёт представление
+  )
+}}
+select * from {{ ref('staging_flights__ticket_flights') }}
+```
+
+**Плюсы:** staging хранится как таблица (удобно отлаживать), fct не занимает места
+**Минусы:** При каждом запросе к fct читается staging таблица
+
+---
+
+#### Вариант 3: staging — table, fct — table
+
+```sql
+-- staging_flights__ticket_flights.sql
+{{
+  config(
+    materialized = 'table'      -- Создаёт физическую таблицу
+  )
+}}
+select ticket_no, flight_id, fare_conditions, amount from
+{{ source('demo_src','ticket_flights') }}
+
+-- fct_ticket_flights.sql
+{{
+  config(
+    materialized = 'table'      -- Создаёт физическую таблицу
+  )
+}}
+select * from {{ ref('staging_flights__ticket_flights') }}
+```
+
+**Плюсы:** Обе модели хранятся отдельно, быстрая работа fct
+**Минусы:** Занимает больше места на диске
+
+---
+
+### Сравнение производительности
+
+| Вариант | Место на диске | Скорость запросов | Отладка |
+|---------|---------------|-------------------|---------|
+| ephemeral → table | ⭐⭐ (меньше) | ⭐⭐ (CTE подставляется) | ⭐ (сложно отлаживать) |
+| table → view | ⭐⭐ (1 таблица) | ⭐⭐ (через view) | ⭐⭐⭐ (staging доступен) |
+| table → table | ⭐ (2 таблицы) | ⭐⭐⭐ (самая быстрая) | ⭐⭐⭐ (обе доступны) |
+
+### Рекомендации
+
+- **Staging слой:** используйте `table` — удобнее отлаживать и проверять данные
+- **Intermediate:** используйте `table` или `view` в зависимости от сложности
+- **Ephemeral:** только для очень простых, редко используемых трансформаций
+
+---
+
+## ref() vs source()
+
+| Функция | Для чего используется | Пример |
+|---------|----------------------|--------|
+| `{{ source('source_name', 'table_name') }}` | Подключение к исходным данным (raw data) | `{{ source('demo_src', 'bookings') }}` |
+| `{{ ref('model_name') }}` | Ссылка на другую dbt модель | `{{ ref('staging_flights__bookings') }}` |
+
+**Правило:**
+- В **staging** моделях — используйте `source()`
+- В **intermediate** и **final** моделях — используйте `ref()`
+
+---
+
 ## Полезные команды dbt
 
 ```bash
@@ -254,4 +417,4 @@ select col1, col2, col3 from
 ---
 
 *Дата создания: 2026-07-23*
-*Обновлено: по мере разработки*
+*Обновлено: 2026-07-23 — добавлен intermediate слой*
