@@ -1,0 +1,73 @@
+models:
+  - name: fct_intermediate_flights__bookings
+    description: Факты бронирования
+    docs:
+      show: true
+      node_color: red
+    latest_version: 1
+    versions:
+      - v: 1
+    config:
+      contract:
+        enforced: true
+    meta:
+      owner: and1m3n
+      contact_tg: and1m3n
+      status:: in_dev
+
+    columns:
+      - name: book_ref
+        data_type: varchar(8)
+        constraints:
+          - type: not_null
+      - name: book_date
+        data_type: timestamptz
+      - name: total_amount
+        data_type: numeric(10,2)
+        constraints:
+          - type: check
+            expression: 'total_amount > 0'
+        tests:
+          - not_null
+        meta:
+          owner: and1m3n_team
+          status: in_dev
+
+  - name: fct_intermediate_flights__ticket_flights
+    description: |
+      Фактура билетов на рейсы — связующая таблица между билетами и рейсами.
+      Содержит информацию о тарифе и стоимости каждого билета на конкретный рейс.
+    docs:
+      show: true
+      node_color: green
+    meta:
+      owner: and1m3n@example.com
+      status: in_dev
+    columns:
+      - name: ticket_no
+        description: |
+          Уникальный номер билета.
+          Идентификатор, который связывает строку с таблицей tickets.
+        data_type: varchar(13)
+        constraints:
+          - type: not_null
+      - name: flight_id
+        description: |
+          ID рейса, на который оформлен билет.
+          Внешний ключ к таблице flights.
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: fare_conditions
+        description: |
+          Условия тарифа (класс обслуживания).
+          Возможные значения: economy, business, first.
+        data_type: varchar(10)
+      - name: amount
+        description: |
+          Стоимость билета в указанном тарифе.
+          Значение в валюте, без НДС.
+        data_type: numeric(10,2)
+        constraints:
+          - type: check
+            expression: 'amount > 0'

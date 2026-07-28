@@ -49,6 +49,80 @@ flight_practice/
 
 ---
 
+## YAML свойства моделей (properties.yml)
+
+Файл `_int_flights__models.yml` описывает метаданные и конфигурацию моделей intermediate слоя.
+
+### Структура описания модели
+
+```yaml
+- name: model_name
+    description: Описание модели (поддерживает многострочный текст с |)
+    docs:
+      show: true                              # Показывать в документации
+      node_color: green                       # Цвет в lineage graph
+    meta:
+      owner: email@example.com                # Владелец модели
+      status: in_dev                          # Статус разработки
+    columns:
+      - name: column_name
+        description: Описание колонки
+        data_type: datatype                   # Тип данных
+        constraints:                          # Ограничения на уровне БД
+          - type: not_null
+          - type: check
+            expression: 'column > 0'
+```
+
+### Основные свойства
+
+| Свойство | Назначение | Пример |
+|----------|------------|--------|
+| `description` | Описание модели/колонки | Многострочный с `|` |
+| `docs.show` | Показать в документации | `true/false` |
+| `docs.node_color` | Цвет в lineage graph | `red`, `green`, `blue` |
+| `meta.owner` | Владелец (email) | `user@example.com` |
+| `meta.status` | Статус | `in_dev`, `production` |
+| `data_type` | Тип данных | `varchar(10)`, `numeric(10,2)` |
+| `constraints` | Ограничения БД | `not_null`, `check`, `unique` |
+
+### Цвета в lineage graph
+
+| Цвет | Назначение |
+|------|------------|
+| `green` | Production готовые модели |
+| `red` | Важные/критические модели |
+| `blue` | Стaging модели |
+| `yellow` | В разработке |
+
+### Настроенные модели
+
+| Модель | Цвет | Owner | Constraints |
+|--------|------|-------|-------------|
+| `fct_intermediate_flights__bookings` | red | and1m3n | book_ref: not_null, total_amount: check |
+| `fct_intermediate_flights__ticket_flights` | green | and1m3n@example.com | ticket_no: not_null, amount: check |
+
+### Когда проверяется YAML файл
+
+| Команда | Что проверяется |
+|---------|-----------------|
+| `dbt run` | Читает свойства моделей. Если `contract.enforced: true` — проверяет соответствие колонок и типов данных |
+| `dbt test` | Запускает все тесты, указанные в YAML (tests блок) |
+| `dbt docs generate` | Генерирует документацию с описаниями, цветами, owner |
+| `dbt parse` | Только парсит YAML, проверяет синтаксис без выполнения |
+
+**Важно:** Если YAML невалидный (синтаксическая ошибка) — **любая** команда dbt упадёт на этапе парсинга, до выполнения моделей.
+
+### Примеры ошибок YAML
+
+| Ошибка | Пример | Сообщение |
+|--------|--------|-----------|
+| Синтаксис | Отступ пробелами вместо табов | `Parsing Error` |
+| Неизвестное свойство | `typo:` вместо `type:` | `Unexpected key` |
+| Неверный тип | `constraints: "not_null"` вместо списка | `Expected list` |
+
+---
+
 ## Intermediate слой
 
 **Назначение:** Промежуточный слой между staging и final/мерами. Используется для объединения данных, простых трансформаций и подготовки данных для аналитики.
@@ -325,14 +399,18 @@ select * from {{ ref('staging_flights__ticket_flights') }}
 # Активация venv
 source /Users/andmin/Desktop/DBT/less1/dbt-env/bin/activate
 
-# Проверка соединения
+# Проверка соединения с БД
 dbt debug
 
-# Генерация документации
-dbt docs generate
-
-# Запуск моделей
+# Запуск всех моделей
 dbt run
+
+# Запуск конкретного слоя
+dbt run --select models/Intermediate
+dbt run --select models/staging
+
+# Запуск конкретной модели
+dbt run --select fct_intermediate_flights__ticket_flights
 
 # Запуск тестов
 dbt test
@@ -340,9 +418,21 @@ dbt test
 # Проверка свежести источников
 dbt source freshness
 
+# Генерация документации
+dbt docs generate
+
+# Запуск сервера документации (откроет в браузере)
+dbt docs serve
+
 # Очистка кэша
 dbt clean
 ```
+
+### Порядок действий для проверки изменений
+
+1. **dbt run** — создаёт/обновляет модели в базе данных
+2. **dbt test** — проверяет все тесты и constraints
+3. **dbt docs generate** + **dbt docs serve** — генерирует и открывает документацию для проверки метаданных
 
 ---
 
@@ -417,4 +507,4 @@ select col1, col2, col3 from
 ---
 
 *Дата создания: 2026-07-23*
-*Обновлено: 2026-07-23 — добавлен intermediate слой*
+*Обновлено: 2026-07-23 — добавлен intermediate слой, свойства моделей (properties.yml)*
